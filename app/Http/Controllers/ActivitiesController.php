@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Gps\Gpx\GpxParser;
 use App\Models\Activity;
 use App\Models\Training;
 use App\Models\User;
 use App\Utilities\ChartHelper;
-use App\Utilities\GpxAnalyzer;
 use App\Utilities\GpxStorage;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -20,19 +20,11 @@ class ActivitiesController extends Controller
     protected $gpxStorage;
 
     /**
-     * @var GpxAnalyzer
-     */
-    protected $gpxAnalyzer;
-
-    /**
      * @param GpxStorage $gpxStorage
-     * @param GpxAnalyzer $gpxAnalyzer
      */
-    public function __construct(GpxStorage $gpxStorage, GpxAnalyzer $gpxAnalyzer)
+    public function __construct(GpxStorage $gpxStorage)
     {
         $this->gpxStorage = $gpxStorage;
-
-        $this->gpxAnalyzer = $gpxAnalyzer;
     }
 
     /**
@@ -53,7 +45,7 @@ class ActivitiesController extends Controller
      */
     public function show(Activity $activity)
     {
-        $data = $this->gpxAnalyzer->analyze($this->gpxStorage->getFullPath($activity->gpx_file));
+        $data = (new GpxParser($this->gpxStorage->getFullPath($activity->gpx_file)))->transform();
 
         \JavaScript::put([
             'pageData' => [
@@ -83,7 +75,7 @@ class ActivitiesController extends Controller
     public function storeGpx(Request $request)
     {
         if ($gpxFileName = $this->gpxStorage->store($request->file('gpx'))) {
-            $data = $this->gpxAnalyzer->analyze($this->gpxStorage->getFullPath($gpxFileName));
+            $data = (new GpxParser($this->gpxStorage->getFullPath($gpxFileName)))->transform();
             $distance = Arr::get($data, 'stats.distance_km', null);
             $avgSpeed = Arr::get($data, 'stats.average_speed_kmh', null);
             $duration = Arr::get($data, 'stats.duration_m', null);

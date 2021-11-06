@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Gps\Gpx\GpxParser;
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
-use App\Utilities\GpxAnalyzer;
 use App\Utilities\GpxStorage;
 use Illuminate\Http\Request;
 
@@ -21,20 +21,13 @@ class ActivitiesController extends Controller
     protected $gpxStorage;
 
     /**
-     * @var GpxAnalyzer
-     */
-    protected $gpxAnalyzer;
-
-    /**
      * @param Request $request
      * @param GpxStorage $gpxStorage
-     * @param GpxAnalyzer $gpxAnalyzer
      */
-    public function __construct(Request $request, GpxStorage $gpxStorage, GpxAnalyzer $gpxAnalyzer)
+    public function __construct(Request $request, GpxStorage $gpxStorage)
     {
         $this->request = $request;
         $this->gpxStorage = $gpxStorage;
-        $this->gpxAnalyzer = $gpxAnalyzer;
     }
 
     /**
@@ -46,11 +39,9 @@ class ActivitiesController extends Controller
         $start = $this->request->query('start', null);
         $end = $this->request->query('end', null);
 
-        $data = $this->gpxAnalyzer->analyze(
-            $this->gpxStorage->getFullPath($activity->gpx_file),
-            $start,
-            $end
-        );
+        $data = (new GpxParser($this->gpxStorage->getFullPath($activity->gpx_file)))
+            ->slice($start, $end)
+            ->transform();
 
         return response()->json([
             'data' => $data,
