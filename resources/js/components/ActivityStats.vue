@@ -32,6 +32,56 @@
         </div>
 
         <ZoomableActivityChart @chart-selection="onSelection"></ZoomableActivityChart>
+
+        <div v-if="hasSelectionStats && intervals.length > 0" class="mt-5 w-full">
+            <div v-for="group in intervals" class="w-full flex justify-content-between">
+                <div
+                    v-for="interval in group"
+                    class="bg-gray-100 mb-3 p-2 w-1/3 rounded mx-1"
+                >
+                    <div class="mb-2 text-lg font-bold flex">
+                        <div class="self-center">#{{ interval.number }}</div>
+
+                        <div
+                            class="self-center text-right flex-grow"
+                            v-if="getLabels(interval)"
+                            v-html="getLabels(interval)"
+                        ></div>
+                    </div>
+
+                    <div class="flex justify-content-between">
+                        <div>
+                            <div class="text-sm text-center text-gray-600">Distance:</div>
+                            <div class="text-lg text-gray-900 text-center" v-html="interval.stats.distance"></div>
+                        </div>
+
+                        <div>
+                            <div class="text-sm text-center text-gray-600">Time:</div>
+                            <div class="text-lg text-gray-900 text-center" v-html="interval.stats.elapsed_time"></div>
+                        </div>
+
+                        <div>
+                            <div class="text-sm text-center text-gray-600">Max speed:</div>
+                            <div class="text-lg text-gray-900 text-center">{{ interval.stats.max_speed }}<span class="text-sm">km/h</span></div>
+                        </div>
+
+                        <div>
+                            <div class="text-sm text-center text-gray-600">Min speed:</div>
+                            <div class="text-lg text-gray-900 text-center">{{ interval.stats.min_speed }}<span class="text-sm">km/h</span></div>
+                        </div>
+
+                        <div>
+                            <div class="text-sm text-center text-gray-600">Avg speed:</div>
+                            <div class="text-lg text-gray-900 text-center">{{ interval.stats.clean_average_speed }}<span class="text-sm">km/h</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-10 relative w-full" style="height: 300px;">
+            <div id="track-map" class="w-full h-full"></div>
+        </div>
     </div>
 </template>
 
@@ -56,6 +106,38 @@ export default {
     computed: {
         hasSelectionStats() {
             return Object.keys(this.selection_stats).length > 0;
+        },
+
+        mapPoints() {
+            let points = [];
+
+            let coords = _.get(window, ['pageData', 'data', 'points'], []);
+
+            for (let k in coords) {
+                points.push([coords[k].longitude, coords[k].latitude]);
+            }
+
+            return points;
+        },
+
+        intervals() {
+            let groups = [];
+            let i = 0;
+            let intervals = _.get(this.selection_stats, ['intervals_stats'], []);
+
+            for (let k in intervals) {
+                if (!groups[i]) {
+                    groups[i] = [];
+                }
+
+                groups[i].push(intervals[k]);
+
+                if ((k+1) % 3 === 0) {
+                    i++;
+                }
+            }
+
+            return groups;
         }
     },
 
@@ -75,12 +157,81 @@ export default {
                 .then((response) => {
                     this.selection_stats = _.get(response, ['data', 'stats'], {});
                 });
+        },
+
+        getLabels(interval) {
+            if (interval.labels.length === 0) {
+                return null;
+            }
+
+            let html = '';
+
+            if (interval.labels.indexOf('best_max_speed') !== -1) {
+                html += this.buildLabel('best speed', 'red', 'red');
+            }
+
+            if (interval.labels.indexOf('best_avg_speed') !== -1) {
+                html += this.buildLabel('best avg speed', 'yellow', 'yellow');
+            }
+
+            if (interval.labels.indexOf('best_distance') !== -1) {
+                html += this.buildLabel('best distance', 'blue', 'blue');
+            }
+
+            return html;
+        },
+
+        buildLabel(text, bg, color) {
+            return `<span class="rounded mx-1 text-sm px-2 py-1 text-${color}-900 bg-${bg}-100">${text}</span>`;
         }
     },
 
     created() {
         this.selection_stats = _.get(window, ['pageData', 'data', 'stats'], {});
         this.activity = _.get(window, ['pageData', 'activity'], {});
+    },
+
+    mounted() {
+        let mapboxgl = require('mapbox-gl/dist/mapbox-gl.js');
+
+        mapboxgl.accessToken = window.mapbox_access_token;
+
+        setTimeout(() => {
+            let map = new mapboxgl.Map({
+                container: 'track-map',
+                style: 'mapbox://styles/mapbox/streets-v11',
+                center: this.mapPoints[0],
+                zoom: 15
+            });
+
+            map.on('load', () => {
+                map.addSource('route', {
+                    'type': 'geojson',
+                    'data': {
+                        'type': 'Feature',
+                        'properties': {},
+                        'geometry': {
+                            'type': 'LineString',
+                            'coordinates': this.mapPoints
+                        }
+                    }
+                });
+
+                map.addLayer({
+                    'id': 'route',
+                    'type': 'line',
+                    'source': 'route',
+                    'layout': {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    'paint': {
+                        'line-color': '#ff0000',
+                        'line-width': 3
+                    }
+                });
+            })
+        }, 2000);
     }
 }
 </script>

@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="w-full">
         <div>
             <apexchart type="line" height="230" :options="getOptions()" :series="getSeries()"></apexchart>
         </div>
