@@ -33,7 +33,17 @@
 
         <ZoomableActivityChart @chart-selection="onSelection"></ZoomableActivityChart>
 
-        <div v-if="hasSelectionStats && intervals.length > 0" class="mt-5 w-full">
+        <div class="mt-5">
+            <a
+                @click.prevent="toggleTrainingStats()"
+                href="javascript:void(0)"
+                class="hover:no-underline hover:text-gray-700 hover:bg-gray-100 px-3 py-2 border border-gray-300 rounded text-gray-700"
+            >
+                <StatsIcon class="w-6 h-6 text-gray-500 fill-current inline"></StatsIcon> {{ show_training_stats ? 'Hide training stats' : 'Show training stats' }}
+            </a>
+        </div>
+
+        <div v-if="show_training_stats && hasSelectionStats && intervals.length > 0" class="mt-5 w-full">
             <div v-for="group in intervals" class="w-full flex justify-content-between">
                 <div
                     v-for="interval in group"
@@ -88,18 +98,20 @@
 <script>
 import ZoomableActivityChart from "./ZoomableActivityChart";
 import {http} from "../mixins/http";
+import StatsIcon from "./icons/StatsIcon";
 
 export default {
     name: "ActivityStats",
 
-    components: {ZoomableActivityChart},
+    components: {StatsIcon, ZoomableActivityChart},
 
     mixins: [http],
 
     data() {
         return {
             selection_stats: {},
-            activity: {}
+            activity: {},
+            show_training_stats: false
         }
     },
 
@@ -183,6 +195,10 @@ export default {
 
         buildLabel(text, bg, color) {
             return `<span class="rounded mx-1 text-sm px-2 py-1 text-${color}-900 bg-${bg}-100">${text}</span>`;
+        },
+
+        toggleTrainingStats() {
+            this.show_training_stats = !this.show_training_stats;
         }
     },
 
