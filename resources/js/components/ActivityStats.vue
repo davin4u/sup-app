@@ -47,7 +47,11 @@
             <div v-for="group in intervals" class="w-full flex justify-content-between">
                 <div
                     v-for="interval in group"
-                    class="bg-gray-100 mb-3 p-2 w-1/3 rounded mx-1"
+                    class="mb-3 p-2 w-1/3 rounded mx-1"
+                    :class="{
+                        'bg-gray-100': !isWorseInterval(interval),
+                        'bg-red-100': isWorseInterval(interval)
+                    }"
                 >
                     <div class="mb-2 text-lg font-bold flex">
                         <div class="self-center">#{{ interval.number }}</div>
@@ -179,7 +183,7 @@ export default {
             let html = '';
 
             if (interval.labels.indexOf('best_max_speed') !== -1) {
-                html += this.buildLabel('best speed', 'red', 'red');
+                html += this.buildLabel('best speed', 'green', 'green');
             }
 
             if (interval.labels.indexOf('best_avg_speed') !== -1) {
@@ -195,6 +199,12 @@ export default {
 
         buildLabel(text, bg, color) {
             return `<span class="rounded mx-1 text-sm px-2 py-1 text-${color}-900 bg-${bg}-100">${text}</span>`;
+        },
+
+        isWorseInterval(interval) {
+            let labels = _.get(interval, ['labels'], []);
+
+            return labels.indexOf('worse_avg_speed') !== -1;
         },
 
         toggleTrainingStats() {

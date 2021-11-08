@@ -332,7 +332,7 @@ class GpxParser
                 // in case of short intervals there may be little amount of points
                 // and such intervals will be filtered out
 
-                return count($intervalData['points']) > 26
+                return count($intervalData['points']) > config('gpx_parser.minimum_interval_points')
                     && $intervalData['stats']['clean_average_speed'] >= $trackCleanAverageSpeed;
             });
 
@@ -342,6 +342,7 @@ class GpxParser
             $bestMaxSpeedIntervalNumber = 0;
             $bestAvgSpeed = $data[0]['stats']['clean_average_speed'];
             $bestAvgSpeedIntervalNumber = 0;
+            $secondBestAvgSpeed = $data[0]['stats']['clean_average_speed'];
             $bestDistance = $data[0]['stats']['distance_m'];
             $bestDistanceIntervalNumber = 0;
 
@@ -354,6 +355,7 @@ class GpxParser
                 }
 
                 if ($interval['stats']['clean_average_speed'] > $bestAvgSpeed) {
+                    $secondBestAvgSpeed = $bestAvgSpeed;
                     $bestAvgSpeed = $interval['stats']['clean_average_speed'];
                     $bestAvgSpeedIntervalNumber = $key;
                 }
@@ -367,6 +369,14 @@ class GpxParser
             $data[$bestDistanceIntervalNumber]['labels'][] = 'best_distance';
             $data[$bestMaxSpeedIntervalNumber]['labels'][] = 'best_max_speed';
             $data[$bestAvgSpeedIntervalNumber]['labels'][] = 'best_avg_speed';
+
+            // determine intervals with worse avg speed
+            $thresholdAvgSpeed = round(($bestAvgSpeed + $secondBestAvgSpeed) / 2 * config('gpx_parser.threshold_avg_speed_reduction'), 2);
+            foreach ($data as $key => $interval) {
+                if ($interval['stats']['clean_average_speed'] < $thresholdAvgSpeed) {
+                    $data[$key]['labels'][] = 'worse_avg_speed';
+                }
+            }
         }
 
         return $data;
