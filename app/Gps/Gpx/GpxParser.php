@@ -4,6 +4,7 @@ namespace App\Gps\Gpx;
 
 use App\Gps\DataFilters\Filters\KalmanFilter;
 use App\Utilities\DataHelper;
+use Illuminate\Support\Arr;
 use phpGPX\Models\Point;
 use phpGPX\Models\Track;
 use phpGPX\phpGPX;
@@ -250,20 +251,29 @@ class GpxParser
         return round($total / $int, 2);
     }
 
+    /**
+     * @TODO extract the entire method to a class IntervalTrainingAnalyzer
+     *
+     * @param array $points
+     * @param $trackCleanAverageSpeed
+     * @return array
+     */
     private function calculateIntervalTrainingStats(array $points, $trackCleanAverageSpeed)
     {
         $data = [];
         $prevPoint = null;
-        $currentMax = current($points)->speed;
         $averagePassed = false;
+        $currentMaxSpeed = 0;
         $isInterval = false;
         $i = 0;
 
+        // determine points related to intervals and group them
         foreach ($points as $point) {
             if (!isset($data[$i])) {
                 $data[$i] = [
                     'labels' => [],
-                    'points' => []
+                    'points' => [],
+                    'meta' => [],
                 ];
             }
 
@@ -280,8 +290,8 @@ class GpxParser
 
                 $data[$i]['points'][] = $point;
 
-                if ($point->speed > $currentMax) {
-                    $currentMax = $point->speed;
+                if ($point->speed > $currentMaxSpeed) {
+                    $currentMaxSpeed = $point->speed;
                 }
 
                 $averagePassed = $point->speed >= $trackCleanAverageSpeed;
@@ -289,17 +299,28 @@ class GpxParser
                 if ($growing && $averagePassed) {
                     $isInterval = true;
                 }
+
+                if (
+                    empty($data[$i]['meta'])
+                    && !$growing
+                    && ($point->speed < $currentMaxSpeed * config('gpx_parser.effective_factor'))
+                ) {
+                    $intervalFirstPoint = $data[$i]['points'][0];
+                    $data[$i]['meta']['effective_time'] = $point->time->getTimestamp() - $intervalFirstPoint->time->getTimestamp();
+                    $data[$i]['meta']['effective_distance'] = $point->distance - $intervalFirstPoint->distance;
+                }
             } else {
                 if (!$isInterval && !empty($data[$i])) {
                     $data[$i]['points'] = [];
-                    $currentMax = 0;
+                    $data[$i]['meta'] = [];
+                    $currentMaxSpeed = 0;
                 }
 
                 if ($isInterval) {
                     $i++;
                     $averagePassed = false;
-                    $currentMax = 0;
                     $isInterval = false;
+                    $currentMaxSpeed = 0;
                 }
             }
 
@@ -307,26 +328,35 @@ class GpxParser
         }
 
         if (!empty($data)) {
-            foreach ($data as $key => $intervalPoints) {
-                if (empty($intervalPoints['points'])) {
+            // calculate stats for each interval
+            foreach ($data as $key => $intervalData) {
+                if (empty($intervalData['points'])) {
                     continue;
                 }
 
-                $c = count($intervalPoints['points']) - 1;
-                $startDistance = $intervalPoints['points'][0]->distance;
-                $finishDistance = $intervalPoints['points'][$c]->distance;
+                $c = count($intervalData['points']) - 1;
+                $startDistance = $intervalData['points'][0]->distance;
+                $finishDistance = $intervalData['points'][$c]->distance;
 
-                $startTime = $intervalPoints['points'][0]->time->getTimestamp();
-                $finishTime = $intervalPoints['points'][$c]->time->getTimestamp();
+                $startTime = $intervalData['points'][0]->time->getTimestamp();
+                $finishTime = $intervalData['points'][$c]->time->getTimestamp();
 
-                $data[$key]['stats'] = array_merge($this->calculateSpeedStats($intervalPoints['points']), [
+                $effectiveTime = Arr::get($intervalData, 'meta.effective_time', null);
+                $effectiveDistance = arr::get($intervalData, 'meta.effective_distance', null);
+
+                $data[$key]['stats'] = array_merge($this->calculateSpeedStats($intervalData['points']), [
                     'distance' => DataHelper::metersToHumanDistance(round($finishDistance - $startDistance), true),
                     'distance_m' => round($finishDistance - $startDistance),
                     'elapsed_time' => DataHelper::secondsToHumanDuration($finishTime - $startTime, true),
                     'elapsed_time_s' => $finishTime - $startTime,
+                    'effective_time' => $effectiveTime ? DataHelper::secondsToHumanDuration($effectiveTime, true) : null,
+                    'effective_distance' => $effectiveDistance ? DataHelper::metersToHumanDistance($effectiveDistance, true) : null,
                 ]);
+
+                unset($data['meta']);
             }
 
+            // filter out "wrong" intervals matches
             $data = array_filter($data, function ($intervalData) use ($trackCleanAverageSpeed) {
                 // @TODO: filtration by number of points may give issues here
                 // in case of short intervals there may be little amount of points

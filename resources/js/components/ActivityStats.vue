@@ -89,6 +89,18 @@
                             <div class="text-lg text-gray-900 text-center">{{ interval.stats.clean_average_speed }}<span class="text-sm">km/h</span></div>
                         </div>
                     </div>
+
+                    <div class="flex justify-content-between">
+                        <div v-if="interval.stats.effective_distance">
+                            <div class="text-sm text-center text-gray-600">ED:</div>
+                            <div class="text-lg text-gray-900 text-center" v-html="interval.stats.effective_distance"></div>
+                        </div>
+
+                        <div v-if="interval.stats.effective_time">
+                            <div class="text-sm text-center text-gray-600">ET:</div>
+                            <div class="text-lg text-gray-900 text-center" v-html="interval.stats.effective_time"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
